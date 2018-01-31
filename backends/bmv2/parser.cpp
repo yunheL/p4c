@@ -282,6 +282,7 @@ ParserConverter::convertSelectExpression(const IR::SelectExpression* expr) {
     for (auto sc : se->selectCases) {
         auto trans = new Util::JsonObject();
         mpz_class value, mask;
+        dump(sc);
         unsigned bytes = combine(sc->keyset, se->select, value, mask);
         if (mask == 0) {
             trans->emplace("value", "default");
@@ -331,7 +332,15 @@ bool ParserConverter::preorder(const IR::P4Parser* parser) {
     auto parser_id = json->add_parser("parser");
 
     for (auto s : parser->parserLocals) {
-        if (s->is<IR::Declaration_Instance>()) {
+        if (auto inst = s->to<IR::Declaration_Instance>()) {
+            if (auto type = inst->type->to<IR::Type_Specialized>()) {
+                if (auto typeName = type->baseType->to<IR::Type_Name>()) {
+                    if (typeName->path->name == "value_set") {
+                        //
+                        continue;
+                    }
+                }
+            }
             ::error("%1%: not supported on parsers on this target", s);
             return false;
         }
@@ -344,7 +353,9 @@ bool ParserConverter::preorder(const IR::P4Parser* parser) {
         auto state_id = json->add_parser_state(parser_id, state->controlPlaneName());
         // convert statements
         for (auto s : state->components) {
+            LOG1("parser statement " << s);
             auto op = convertParserStatement(s);
+            LOG1("json " << op);
             json->add_parser_op(state_id, op);
         }
         // convert transitions

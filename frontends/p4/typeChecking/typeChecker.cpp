@@ -2749,6 +2749,9 @@ TypeInference::matchCase(const IR::SelectExpression* select, const IR::Type_Tupl
     if (caseType->is<IR::Type_Dontcare>())
         return selectCase;
 
+    // if (caseType->is<IR::Type_ParserValueSet>())
+    // return selectCase;
+
     const IR::Type* useSelType = selectType;
     if (!caseType->is<IR::Type_Tuple>()) {
         if (selectType->components.size() != 1) {
