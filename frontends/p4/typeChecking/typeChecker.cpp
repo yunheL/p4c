@@ -1351,7 +1351,7 @@ const IR::Node* TypeInference::postorder(IR::Type_Header* type) {
         while (t->is<IR::Type_Newtype>())
             t = getTypeType(t->to<IR::Type_Newtype>()->type);
         return t->is<IR::Type_Bits>() || t->is<IR::Type_Varbits>() ||
-               t->is<IR::Type_SerEnum>(); };
+               t->is<IR::Type_SerEnum>() || t->is<IR::Type_Struct>(); };
     validateFields(canon, validator);
 
     const IR::StructField* varbit = nullptr;
