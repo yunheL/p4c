@@ -443,6 +443,7 @@ void InspectPsaProgram::postorder(const IR::P4Control *c) {
 }
 
 void PsaSwitchBackend::convert(const IR::ToplevelBlock* tlb) {
+    std::cout << "*** [Yunhe] psa_switch ***" << std::endl;
     CHECK_NULL(tlb);
     PsaProgramStructure structure(refMap, typeMap);
 
