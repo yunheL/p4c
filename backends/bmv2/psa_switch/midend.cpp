@@ -58,6 +58,60 @@ limitations under the License.
 #include "midend/fillEnumMap.h"
 #include "midend/removeAssertAssume.h"
 #include "backends/bmv2/psa_switch/options.h"
+#include "frontends/p4/methodInstance.h"
+
+namespace P4 {
+
+class FixRegisterRead : public Transform {
+
+    ReferenceMap* refMap;
+    TypeMap*      typeMap;
+    
+    public:
+        FixRegisterRead(ReferenceMap* refMap, TypeMap* typeMap):
+            refMap(refMap), typeMap(typeMap)
+        {CHECK_NULL(refMap); CHECK_NULL(typeMap); setName("FixRegisterRead");}
+
+    const IR::Node *preorder(IR::AssignmentStatement *as) override {
+        // locate register_read()
+        auto mce = as->right->to<IR::MethodCallExpression>();
+        if (mce == nullptr)
+            return as;
+        auto mi = P4::MethodInstance::resolve(mce, refMap, typeMap); 
+        auto em = mi->to<P4::ExternMethod>();
+        if (em == nullptr)
+            return as;
+        if (em->originalExternType->name.name != "Register" || 
+                em->method->name.name != "read")
+            return as;
+
+        // build vector
+        auto result = new IR::IndexedVector<IR::StatOrDecl>();
+        // declaration
+        auto tmp = refMap->newName("regReadTmp");
+        auto type = typeMap->getType(as->left);
+        // TODO need to check return value?
+        auto decl = new IR::Declaration_Variable(IR::ID(tmp), type->getP4Type(), nullptr);
+        result->push_back(decl);
+
+        // register_read()
+        auto regReadTmp = new IR::PathExpression(tmp);
+        auto arg = new IR::Argument(regReadTmp);
+        auto args = new IR::Vector<IR::Argument>();
+        args->push_back(arg);
+        args->push_back(mce->arguments->at(0));
+        auto mce2 = new IR::MethodCallExpression(mce->method);
+        mce2->arguments = args;
+        auto mc = new IR::MethodCallStatement(mce2); 
+        result->push_back(mc);
+
+        // assignment
+        result->push_back(new IR::AssignmentStatement(as->left, regReadTmp));
+        return result;
+    }
+};
+
+}
 
 namespace BMV2 {
 
@@ -123,6 +177,7 @@ PsaSwitchMidEnd::PsaSwitchMidEnd(CompilerOptions& options, std::ostream* outStre
             new P4::FlattenHeaders(&refMap, &typeMap),
             new P4::FlattenInterfaceStructs(&refMap, &typeMap),
             new P4::ReplaceSelectRange(&refMap, &typeMap),
+            new P4::FixRegisterRead(&refMap, &typeMap),
             new P4::Predication(&refMap),
             new P4::MoveDeclarations(),  // more may have been introduced
             new P4::ConstantFolding(&refMap, &typeMap),
