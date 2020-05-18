@@ -97,6 +97,7 @@ class FixRegisterRead : public Transform {
         // register_read()
         auto regReadTmp = new IR::PathExpression(tmp);
         auto arg = new IR::Argument(regReadTmp);
+        typeMap->setType(arg->expression, type);
         auto args = new IR::Vector<IR::Argument>();
         args->push_back(arg);
         args->push_back(mce->arguments->at(0));
@@ -107,6 +108,50 @@ class FixRegisterRead : public Transform {
 
         // assignment
         result->push_back(new IR::AssignmentStatement(as->left, regReadTmp));
+
+        // update typeMap
+        auto argsInfo = new IR::Vector<IR::ArgumentInfo>();
+        //auto typeArgs = new IR::Vector<IR::Type>();
+        for (auto aarg : *mce2->arguments) {
+            auto arg = aarg->expression;
+            auto argType = typeMap->getType(arg);
+            if (argType == nullptr)
+                // TODO errormsg
+                return nullptr;
+            // std::cout << "type = " << argType << std::endl;
+            auto argInfo = new IR::ArgumentInfo(arg->srcInfo, typeMap->isLeftValue(arg), typeMap->isCompileTimeConstant(arg), argType, aarg->name);
+            argsInfo->push_back(argInfo);
+        }
+        auto retType = new IR::Type_Var(IR::ID(refMap->newName("R"), "return type"));
+        auto typeArgs = new IR::Vector<IR::Type>();
+        auto callType = new IR::Type_MethodCall(mce2->srcInfo, typeArgs, retType, argsInfo);
+        typeMap->setType(mce2, callType);
+
+        // update typeMap to resolve future MethodInstance()
+        auto mem = mce2->method->to<IR::Member>();
+        auto pe = mem->expr->to<IR::PathExpression>();
+        const IR::IDeclaration *d = nullptr;
+        const IR::Type *t = nullptr;
+        d = refMap->getDeclaration(pe->path, true);
+        t = typeMap->getType(d->getNode());
+        t = t->to<IR::Type_SpecializedCanonical>()->substituted->to<IR::Type>();
+        auto et = t->to<IR::Type_Extern>();
+        auto methods2 = new IR::Vector<IR::Method>();
+        for (auto m : et->methods) {
+            methods2->push_back(m);
+            methods2->push_back(m);
+        }
+        auto et2 = new IR::Type_Extern(et->srcInfo, et->name, et->typeParameters, *methods2);
+        auto t2 = et2->to<IR::Type_SpecializedCanonical>();
+        typeMap->setType(d->getNode(), t2);
+        // test
+        const IR::IDeclaration *d3 = nullptr;
+        const IR::Type *t3 = nullptr;
+        d3 = refMap->getDeclaration(pe->path, true);
+        t3 = typeMap->getType(d3->getNode());
+        t3 = t3->to<IR::Type_SpecializedCanonical>()->substituted->to<IR::Type>();
+        auto et3 = t3->to<IR::Type_Extern>();
+        // test end
         return result;
     }
 };
@@ -178,6 +223,7 @@ PsaSwitchMidEnd::PsaSwitchMidEnd(CompilerOptions& options, std::ostream* outStre
             new P4::FlattenInterfaceStructs(&refMap, &typeMap),
             new P4::ReplaceSelectRange(&refMap, &typeMap),
             new P4::FixRegisterRead(&refMap, &typeMap),
+            new P4::TypeChecking(&refMap, &typeMap),
             new P4::Predication(&refMap),
             new P4::MoveDeclarations(),  // more may have been introduced
             new P4::ConstantFolding(&refMap, &typeMap),
