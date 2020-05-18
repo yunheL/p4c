@@ -134,6 +134,7 @@ class FixRegisterRead : public Transform {
         const IR::Type *t = nullptr;
         d = refMap->getDeclaration(pe->path, true);
         t = typeMap->getType(d->getNode());
+        auto tsc = t->to<IR::Type_SpecializedCanonical>();
         t = t->to<IR::Type_SpecializedCanonical>()->substituted->to<IR::Type>();
         auto et = t->to<IR::Type_Extern>();
         auto methods2 = new IR::Vector<IR::Method>();
@@ -142,8 +143,10 @@ class FixRegisterRead : public Transform {
             methods2->push_back(m);
         }
         auto et2 = new IR::Type_Extern(et->srcInfo, et->name, et->typeParameters, *methods2);
-        auto t2 = et2->to<IR::Type_SpecializedCanonical>();
-        typeMap->setType(d->getNode(), t2);
+        // auto t2 = et2->to<IR::Type_SpecializedCanonical>();
+        auto t2 = new IR::Type_SpecializedCanonical(tsc->baseType, tsc->arguments, et2->to<IR::Type>());
+        auto tt = t2->to<IR::Type>();
+        typeMap->setType(d->getNode(), tt);
         // test
         const IR::IDeclaration *d3 = nullptr;
         const IR::Type *t3 = nullptr;
